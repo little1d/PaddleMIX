@@ -15,7 +15,7 @@
 Processor class for Qwen2-VL.
 """
 from typing import Dict, List, Optional, Union
-import decord
+# import decord
 
 from paddlenlp.transformers.feature_extraction_utils import BatchFeature
 from paddlenlp.transformers.image_transforms import (
