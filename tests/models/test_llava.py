@@ -35,7 +35,7 @@ class LlavaModelTester:
         self.parent = parent
         self.model_name = model_name
         # TODO
-        self.tokenizer = LLavaTokenizer.from_pretrained("path_to_tokenizer")
+        # self.tokenizer = LLavaTokenizer.from_pretrained("path_to_tokenizer")
 
     def get_config(self):
         # llava_qwen config copy from https://huggingface.co/lmms-lab/llava-onevision-qwen2-7b-ov/blob/main/config.json
@@ -276,14 +276,23 @@ class LlavaModelTest(ModelTesterMixin, unittest.TestCase):
                 tester = self.LlavaQwen_model_tester
             elif model_class == LlavaLlamaForCausalLM:
                 tester = self.LlavaLlama_model_tester
-            config, inputs_dict = tester.prepare_config_and_inputs()
-            model = model_class(config)
+            config, inputs_dict = tester.prepare_config_and_inputs_for_common()
+            model = self._make_model_instance(config, model_class)
             model.eval()
             with paddle.no_grad():
                 first = model(**inputs_dict)
                 second = model(**inputs_dict)
-            check_determinism(first, second)
 
+            if isinstance(first, tuple) and isinstance(second, tuple):
+                for tensor1, tensor2 in zip(first, second):
+                    check_determinism(tensor1, tensor2)
+            else:
+                check_determinism(first, second)
+
+    @unittest.skip(reason="Hidden_states is tested in individual model tests")
+    def test_hidden_states_output(self):
+        pass
+    
     def test_model(self):
         for model_class in self.all_model_classes:
             if model_class == LlavaQwenForCausalLM:
