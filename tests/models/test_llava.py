@@ -276,23 +276,17 @@ class LlavaModelTest(ModelTesterMixin, unittest.TestCase):
                 tester = self.LlavaQwen_model_tester
             elif model_class == LlavaLlamaForCausalLM:
                 tester = self.LlavaLlama_model_tester
-            config, inputs_dict = tester.prepare_config_and_inputs_for_common()
+            config, inputs_dict = tester.prepare_config_and_inputs()
             model = self._make_model_instance(config, model_class)
             model.eval()
             with paddle.no_grad():
                 first = model(**inputs_dict)
                 second = model(**inputs_dict)
-
-            if isinstance(first, tuple) and isinstance(second, tuple):
-                for tensor1, tensor2 in zip(first, second):
-                    check_determinism(tensor1, tensor2)
-            else:
-                check_determinism(first, second)
+            check_determinism(first, second)
 
     @unittest.skip(reason="Hidden_states is tested in individual model tests")
     def test_hidden_states_output(self):
         pass
-    
     def test_model(self):
         for model_class in self.all_model_classes:
             if model_class == LlavaQwenForCausalLM:
