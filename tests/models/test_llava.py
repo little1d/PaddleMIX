@@ -57,7 +57,7 @@ class LlavaModelTester:
                 [384, 1152],
                 [384, 1536],
                 [384, 1920],
-                [384, 2304],True
+                [384, 2304],
                 [768, 384],
                 [768, 768],
                 [768, 1152],
@@ -128,9 +128,9 @@ class LlavaModelTester:
             "vision_tower_pretrained": None,
             "vocab_size": 152064,
         }
-        # llava_llama configs copy from https://huggingface.co/liuhaotian/llava-v1.6-vicuna-13b/blob/main/config.json
+        # llava_llama configs copy from https://huggingface.co/liuhaotian/llava-v1.6-vicuna-7b/blob/main/config.json
         test_llava_llama_config = {
-            "_name_or_path": "./checkpoints/vicuna-13b-v1-5",
+            "_name_or_path": "liuhaotian/llava-v1.6-vicuna-7b",
             "architectures": ["LlavaLlamaForCausalLM"],
             "attention_bias": False,
             "attention_dropout": 0.0,
@@ -139,14 +139,13 @@ class LlavaModelTester:
             "freeze_mm_mlp_adapter": False,
             "freeze_mm_vision_resampler": False,
             "hidden_act": "silu",
-            "hidden_size": 5120,
+            "hidden_size": 4096,
             "image_aspect_ratio": "anyres",
             "image_crop_resolution": 224,
             "image_grid_pinpoints": [[336, 672], [672, 336], [672, 672], [1008, 336], [336, 1008]],
             "image_split_resolution": 224,
             "initializer_range": 0.02,
-            "intermediate_size": 13824,
-            "max_length": 4096,
+            "intermediate_size": 11008,
             "max_position_embeddings": 4096,
             "mm_hidden_size": 1024,
             "mm_patch_merge_type": "spatial_unpad",
@@ -160,9 +159,9 @@ class LlavaModelTester:
             "mm_vision_tower": "openai/clip-vit-large-patch14-336",
             "mm_vision_tower_lr": 2e-06,
             "model_type": "llava",
-            "num_attention_heads": 40,
-            "num_hidden_layers": 40,
-            "num_key_value_heads": 40,
+            "num_attention_heads": 32,
+            "num_hidden_layers": 32,
+            "num_key_value_heads": 32,
             "pad_token_id": 0,
             "pretraining_tp": 1,
             "rms_norm_eps": 1e-05,
@@ -183,7 +182,7 @@ class LlavaModelTester:
         if self.model_name == "LlavaQwen":
             return LlavaQwenConfig(**test_llava_qwen_config)
         elif self.model_name == "LlavaLlama":
-            return LlavaConfig(test_llava_llama_config)
+            return LlavaConfig(**test_llava_llama_config)
 
     def prepare_config_and_inputs(self):
         # inputs
@@ -198,20 +197,19 @@ class LlavaModelTester:
         config = self.get_config()
         return config, images, tokenized_out
 
-    def prepare_config_and_inputs_for_common(self, model_class):
+    def prepare_config_and_inputs_for_common(self):
         config, images, tokenized_out = self.prepare_config_and_inputs()
         inputs_dict = {
             "images": images,
             "input_ids": tokenized_out["input_ids"],
             "attention_mask": tokenized_out["attention_mask"],
             "token_type_ids": tokenized_out["token_type_ids"],
+            "position_id": tokenized_out["position_ids"],
         }
 
         return config, inputs_dict
 
-    def create_and_check_model(
-        self, images, input_ids, attention_mask, token_type_ids, position_id, model_class, inputs
-    ):
+    def create_and_check_model(self, model_class, images, input_ids, attention_mask, token_type_ids, position_id):
         model = model_class(config=self.get_config())
         model.eval()
         with paddle.no_grad():
@@ -223,6 +221,16 @@ class LlavaModelTester:
                 position_id=position_id,
             )
         self.parent.assertIsNotNone(result)
+
+
+# factory function to create LlavaModelTester instance
+def create_llava_model_tester(parent, model_name):
+    if model_name == "LlavaQwen":
+        return LlavaModelTester(parent, model_name)
+    elif model_name == "LlavaLlama":
+        return LlavaModelTester(parent, model_name)
+    else:
+        raise ValueError(f"Unsupported model name: {model_name}")
 
 
 class LlavaModelTest(ModelTesterMixin, unittest.TestCase):
@@ -237,8 +245,8 @@ class LlavaModelTest(ModelTesterMixin, unittest.TestCase):
 
     def setUp(self):
         # model tester instance
-        self.LlavaQwen_model_tester = LlavaModelTester(self, "LlavaQwen")
-        self.LlavaLlama_model_tester = LlavaModelTester(self, "LlavaLlama")
+        self.LlavaQwen_model_tester = create_llava_model_tester(self, "LlavaQwen")
+        self.LlavaLlama_model_tester = create_llava_model_tester(self, "LlavaLlama")
 
         # config tester instance
         self.LlavaQwen_config_tester = ConfigTester(
@@ -276,9 +284,6 @@ class LlavaModelTest(ModelTesterMixin, unittest.TestCase):
                 second = model(**inputs_dict)
             check_determinism(first, second)
 
-    def test_hidden_states_output(self):
-        pass
-
     def test_model(self):
         for model_class in self.all_model_classes:
             if model_class == LlavaQwenForCausalLM:
@@ -286,13 +291,14 @@ class LlavaModelTest(ModelTesterMixin, unittest.TestCase):
             elif model_class == LlavaLlamaForCausalLM:
                 tester = self.LlavaLlama_model_tester
             config, inputs_dict = tester.prepare_config_and_inputs_for_common()
-            tester.create_and_check_model(model_class, config, inputs_dict)
+            tester.create_and_check_model(model_class, **inputs_dict)
 
-    @slow
-    def test_model_from_pretrained(self):
-        for model_class in self.all_model_classes:
-            model = model_class.from_pretrained("path_to_pretrained_model")
-            self.assertIsNotNone(model)
+    # @slow
+    # def test_model_from_pretrained(self):
+    #     for model_class in self.all_model_classes:
+    #         # TODO
+    #         model = model_class.from_pretrained("path_to_pretrained_model")
+    #         self.assertIsNotNone(model)
 
 
 if __name__ == "__main__":
