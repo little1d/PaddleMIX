@@ -14,6 +14,9 @@
 
 import os
 import sys
+from tkinter.messagebox import NO
+os.environ["FLAGS_use_cuda_managed_memory"] = "true"
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 import unittest
 import numpy as np
 import paddle
